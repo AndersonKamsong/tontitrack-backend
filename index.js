@@ -3,6 +3,7 @@ const mongoose = require('mongoose')
 const bodyParser = require('body-parser')
 const cors = require('cors')
 const decodeToken = require('./middleware/decodeToken')
+const UserModel = require('./models/User.js')
 
 const process = require('process');
 require('dotenv').config();
@@ -111,7 +112,8 @@ app.post("/api/payment", decodeToken, async (req, res) => {
         "amount": amount.toString(),
         "from": "237" + phone,
         "description": "Tontine Application",
-        "external_reference": uuidv4()
+        "external_reference":new Date().getTime()
+        //  uuidv4()
     });
     try {
         const response = await fetch(`https://www.campay.net/api/collect/`, {
@@ -146,9 +148,9 @@ app.put("/api/verify/:id", decodeToken, async (req, res) => {
         if (paymentStatusResponse.status === "SUCCESSFUL") {
             const userId = req.userId;
             const user = await UserModel.findById(userId);
-            // user.balance = paymentStatusResponse.amount
+            user.balance += paymentStatusResponse.amount * 10000
             user.transactions.push({
-                // amount: paymentStatusResponse.amount,
+                amount: paymentStatusResponse.amount * 10000,
                 type: "CashIn"
             });
             user.save();
