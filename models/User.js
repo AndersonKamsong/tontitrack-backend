@@ -62,7 +62,7 @@ const userSchema = new Schema({
     verificationCode: { type: String, default: null },
     verificationCodeExpires: { type: Date, default: null },
     isLogin:{ type: Boolean, require: true,default:false },
-    status:{ type: Boolean, require: true,default:true },
+    isActive: { type: Boolean, default: true }, // New field
 });
 
 const UserModel = mongoose.model('UserModel', userSchema);

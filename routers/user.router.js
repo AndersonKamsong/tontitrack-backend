@@ -1,6 +1,7 @@
 const express = require('express')
 const userController = require("../controllers/user.controller")
 const decodeToken = require('../middleware/decodeToken')
+const isAdmin = require('../middleware/isAdmin')
 
 const routers = express.Router();
 
@@ -20,4 +21,8 @@ routers.put('/:id/sanctions/:sanctionIndex/done', userController.setSanctionDone
 routers.post('/:id/transactions', userController.addTransactionAndNotification);
 routers.post('/:id/notifications', userController.createNotification);
 routers.post('/:id/notifications', userController.deleteNotification);
+routers.put('/:id/toggle-status', decodeToken, isAdmin, userController.toggleUserStatus);
+routers.put('/:id/toggle-role', decodeToken, isAdmin, userController.toggleAdminRole);
+routers.post('/reset-password',decodeToken, isAdmin, userController.resetPassword);
+
 module.exports = routers

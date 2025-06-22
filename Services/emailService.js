@@ -1,17 +1,17 @@
 const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
-    service: 'gmail', // or another email service like 'hotmail'
+    service: 'gmail',
     auth: {
-        user: process.env.EMAIL_FROM,       // Your email
-        pass: process.env.EMAIL_PASSWORD    // Your email app password
+        user: process.env.EMAIL_FROM,
+        pass: process.env.EMAIL_PASSWORD,
     }
 });
 
+// 🔐 Send 6-digit email verification code
 async function sendVerificationCode(to, code) {
-    console.log(process.env.EMAIL_FROM)
     const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: process.env.EMAIL_FROM,
         to,
         subject: 'Your Verification Code',
         html: `
@@ -21,16 +21,45 @@ async function sendVerificationCode(to, code) {
                 <h1 style="color:#2E86C1;">${code}</h1>
                 <p>This code is valid for 5 minutes.</p>
             </div>
-        `
+        `,
     };
 
     try {
         await transporter.sendMail(mailOptions);
         console.log(`Verification code sent to ${to}`);
     } catch (err) {
-        console.error('Error sending email:', err);
+        console.error('Error sending verification email:', err);
         throw err;
     }
 }
 
-module.exports = { sendVerificationCode };
+// 🔐 Send reset password email with generated password
+async function sendResetPassword(to, newPassword) {
+    const mailOptions = {
+        from: process.env.EMAIL_FROM,
+        to,
+        subject: '🔐 Your New Password',
+        html: `
+            <div style="font-family:Arial,sans-serif;">
+                <h2>Password Reset</h2>
+                <p>Your password has been reset successfully. Here is your new password:</p>
+                <h1 style="color:#27ae60;">${newPassword}</h1>
+                <p>Please log in and change it as soon as possible.</p>
+            </div>
+        `,
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log(`Password reset sent to ${to}`);
+    } catch (err) {
+        console.error('Error sending reset password email:', err);
+        throw err;
+    }
+}
+
+module.exports = {
+    sendVerificationCode,
+    sendResetPassword,
+    transporter, // optional export if needed elsewhere
+};

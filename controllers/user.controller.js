@@ -3,7 +3,7 @@ const TontineModel = require('../models/Tontine.js')
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcrypt');
 const validator = require('validator');
-const { sendVerificationCode } = require('../Services/emailService');
+const { sendVerificationCode,sendResetPassword } = require('../Services/emailService');
 
 const login = async (req, res) => {
     try {
@@ -150,6 +150,65 @@ const getAllUsers = async (req, res) => {
         return res.status(500).json({ message: 'Server error' });
     }
 }
+
+const generateRandomPassword = (length = 10) => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$!';
+    return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+};
+
+const resetPassword = async (req, res) => {
+    const { email } = req.body;
+
+    try {
+        const user = await UserModel.findOne({ email: email.toLowerCase() });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        const newPassword = generateRandomPassword();
+        const hashedPassword = await bcrypt.hash(password, 9);
+
+        user.password = hashedPassword;
+        await user.save();
+
+        await sendResetPassword(user.email, newPassword);
+
+        res.status(200).json({ message: 'A new password has been sent to the user\'s email.' });
+    } catch (err) {
+        console.error('Reset password failed:', err);
+        res.status(500).json({ error: 'Failed to reset password.' });
+    }
+};
+
+// Activate or deactivate user
+const toggleUserStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await UserModel.findById(id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    user.isActive = !user.isActive;
+    await user.save();
+    return res.status(200).json({ message: `User ${user.isActive ? "activated" : "deactivated"} successfully.` });
+  } catch (err) {
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+// Promote or demote user to/from admin
+const toggleAdminRole = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await UserModel.findById(id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    user.accountType = user.accountType === "Admin" ? "User" : "Admin";
+    await user.save();
+    return res.status(200).json({ message: `User role updated to ${user.accountType}` });
+  } catch (err) {
+    return res.status(500).json({ error: "Server error" });
+  }
+};
 
 // Controller function to create a new user
 const createUser = async (req, res) => {
@@ -465,6 +524,9 @@ const userController = {
     getAllUsers,
     getUserDetail,
     verifyCode,
+    toggleUserStatus,
+    toggleAdminRole,
+    resetPassword,
 };
 
 module.exports = userController;
