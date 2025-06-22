@@ -3,7 +3,7 @@ const TontineModel = require('../models/Tontine.js')
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcrypt');
 const validator = require('validator');
-
+const { sendVerificationCode } = require('../Services/emailService');
 
 const login = async (req, res) => {
     try {
@@ -27,22 +27,30 @@ const login = async (req, res) => {
             email: user.email,
             accountType: user.accountType
         }, 'mytoken')
-        // console.log(token)
+        console.log(token)
 
         user.token = token
+        const code = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit code
+        user.verificationCode = code;
+        user.verificationCodeExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+        user.isLogin = false
         user.save()
+            .then(async (res) => {
+                await sendVerificationCode(user.email, code);
+            })
             .then((result) => {
-            return res.status(200).json({
+                return res.status(200).json({
                     message: 'login successful',
                     phone: user.phone,
                     name: user.name,
                     token: token,
                     accountType: user.accountType
+                })
             })
-        })
-        .catch((err) => {
-            return res.status(401).json({ error: 'check your connection' })
-        })
+            .catch((err) => {
+                console.log(err)
+                return res.status(401).json({ error: 'check your connection' })
+            })
     }
     catch (e) {
         console.log(e)
@@ -51,9 +59,44 @@ const login = async (req, res) => {
 
 }
 
+const verifyCode = async (req, res) => {
+    try {
+        const { code } = req.body;
+
+        if (!code) {
+            return res.status(400).json({ error: 'Verification code is required.' });
+        }
+
+        const userId = req.user.id;
+
+        const user = await UserModel.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        if (
+            user.verificationCode !== code ||
+            !user.verificationCodeExpires ||
+            user.verificationCodeExpires < new Date()
+        ) {
+            return res.status(401).json({ error: 'Invalid or expired verification code.' });
+        }
+
+        user.isLogin = true;
+        user.verificationCode = null;
+        user.verificationCodeExpires = null;
+        await user.save();
+
+        return res.status(200).json({ message: 'Verification successful. You are now logged in.' });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Server error.' });
+    }
+};
+
 const register = async (req, res) => {
     try {
-        let { name,phone, dob, email, password, confirmPass } = req.body
+        let { name, phone, dob, email, password, confirmPass } = req.body
         console.log(req.body)
         if (!validator.isEmail(email)) {
             return res.status(400).send({ error: 'Invalid email.' });
@@ -420,7 +463,8 @@ const userController = {
     login,
     register,
     getAllUsers,
-    getUserDetail
+    getUserDetail,
+    verifyCode,
 };
 
 module.exports = userController;
