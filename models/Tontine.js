@@ -41,14 +41,17 @@ const tontineSchema = new Schema({
         _ref: String
     },
     members: [{
-        _id: mongoose.Schema.Types.ObjectId,
+        _id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'UserModel'
+        },
         _ref: String
     }],
     payoutIndex: { type: Number, require: true, default: 0 },
     balance: { type: Number, require: true, default: 0 },
     contributionsList: { type: [contributionSechema], require: true },
     sanctionsList: { type: [sanctionSechema], require: true },
-
+    isActive: { type: Boolean, default: true },
 });
 
 const TontineModel = mongoose.model('TontineModel', tontineSchema);

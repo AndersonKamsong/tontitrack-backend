@@ -24,5 +24,6 @@ routers.post('/:id/notifications', userController.deleteNotification);
 routers.put('/:id/toggle-status', decodeToken, isAdmin, userController.toggleUserStatus);
 routers.put('/:id/toggle-role', decodeToken, isAdmin, userController.toggleAdminRole);
 routers.post('/reset-password',decodeToken, isAdmin, userController.resetPassword);
+routers.post('/resend-code', decodeToken, userController.resendCode);
 
 module.exports = routers

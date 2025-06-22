@@ -3,7 +3,7 @@ const TontineModel = require('../models/Tontine.js')
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcrypt');
 const validator = require('validator');
-const { sendVerificationCode,sendResetPassword } = require('../Services/emailService');
+const { sendVerificationCode, sendResetPassword } = require('../Services/emailService');
 
 const login = async (req, res) => {
     try {
@@ -87,13 +87,55 @@ const verifyCode = async (req, res) => {
         user.verificationCodeExpires = null;
         await user.save();
 
-        return res.status(200).json({ message: 'Verification successful. You are now logged in.' });
+        return res.status(200).json({
+            message: 'Verification successful. You are now logged in.',
+            phone: user.phone,
+            name: user.name,
+            accountType: user.accountType
+        });
     } catch (err) {
         console.error(err);
         return res.status(500).json({ error: 'Server error.' });
     }
 };
 
+const resendCode = async (req, res) => {
+  try {
+    // Assuming user id is in req.user.id after decodeToken middleware
+    const userId = req.user.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Find user by id
+    const user = await UserModel.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ error: 'User already verified' });
+    }
+
+    // Generate new verification code (6-digit numeric code)
+    const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Save the new code and expiration time (e.g., 15 min from now)
+    user.verificationCode = newCode;
+    user.verificationCodeExpires = Date.now() + 15 * 60 * 1000;
+    await user.save();
+
+    // Send email with the new code
+    await sendVerificationCode(user.email, newCode);
+
+    return res.json({ message: 'Verification code resent to your email.' });
+  } catch (error) {
+    console.error('Error in resendCode:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+};
 const register = async (req, res) => {
     try {
         let { name, phone, dob, email, password, confirmPass } = req.body
@@ -182,32 +224,32 @@ const resetPassword = async (req, res) => {
 
 // Activate or deactivate user
 const toggleUserStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const user = await UserModel.findById(id);
-    if (!user) return res.status(404).json({ error: "User not found" });
+    try {
+        const { id } = req.params;
+        const user = await UserModel.findById(id);
+        if (!user) return res.status(404).json({ error: "User not found" });
 
-    user.isActive = !user.isActive;
-    await user.save();
-    return res.status(200).json({ message: `User ${user.isActive ? "activated" : "deactivated"} successfully.` });
-  } catch (err) {
-    return res.status(500).json({ error: "Server error" });
-  }
+        user.isActive = !user.isActive;
+        await user.save();
+        return res.status(200).json({ message: `User ${user.isActive ? "activated" : "deactivated"} successfully.` });
+    } catch (err) {
+        return res.status(500).json({ error: "Server error" });
+    }
 };
 
 // Promote or demote user to/from admin
 const toggleAdminRole = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const user = await UserModel.findById(id);
-    if (!user) return res.status(404).json({ error: "User not found" });
+    try {
+        const { id } = req.params;
+        const user = await UserModel.findById(id);
+        if (!user) return res.status(404).json({ error: "User not found" });
 
-    user.accountType = user.accountType === "Admin" ? "User" : "Admin";
-    await user.save();
-    return res.status(200).json({ message: `User role updated to ${user.accountType}` });
-  } catch (err) {
-    return res.status(500).json({ error: "Server error" });
-  }
+        user.accountType = user.accountType === "Admin" ? "User" : "Admin";
+        await user.save();
+        return res.status(200).json({ message: `User role updated to ${user.accountType}` });
+    } catch (err) {
+        return res.status(500).json({ error: "Server error" });
+    }
 };
 
 // Controller function to create a new user
@@ -256,9 +298,10 @@ const getUserById = async (req, res) => {
 const getUserDetail = async (req, res) => {
     try {
         // Get the user ID from token decoded
-        const userId = req.userId;
+        const userId = req.user.id;
         // Find the user by ID
         const user = await UserModel.findById(userId);
+        console.log(user)
         // Check if user exists
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
@@ -527,6 +570,7 @@ const userController = {
     toggleUserStatus,
     toggleAdminRole,
     resetPassword,
+    resendCode,
 };
 
 module.exports = userController;

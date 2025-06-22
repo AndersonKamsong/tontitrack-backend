@@ -1,6 +1,7 @@
 const UserModel = require('../models/User.js')
 const TontineModel = require('../models/Tontine.js')
 const axios = require('axios')
+const mongoose = require('mongoose');
 
 const permanentAccessToken = 'a5c515b79ca4bcfe4df9a539ac914d1bedb458fd';
 
@@ -474,6 +475,65 @@ async function mobilePayment(req,res){
        }
 }
 
+// Get all tontines
+const getAllTontines = async (req, res) => {
+  try {
+    const tontines = await TontineModel.find();
+    res.status(200).json({ tontines });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch tontines' });
+  }
+};
+
+// Toggle activate/deactivate tontine by id
+const toggleTontineStatus = async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ error: 'Invalid tontine id' });
+  }
+
+  try {
+    const tontine = await TontineModel.findById(id);
+    if (!tontine) {
+      return res.status(404).json({ error: 'Tontine not found' });
+    }
+
+    // Assuming you want an isActive boolean flag for activation status.
+    tontine.isActive = !tontine.isActive;
+    await tontine.save();
+
+    res.status(200).json({ message: `Tontine ${tontine.isActive ? 'activated' : 'deactivated'}` });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to toggle tontine status' });
+  }
+};
+
+// Get all members of a tontine
+const getTontineMembers = async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ error: 'Invalid tontine id' });
+  }
+
+  try {
+    const tontine = await TontineModel.findById(id)
+        .populate('members._id', 'name email phone');
+        console.log(tontine.members)
+    if (!tontine) {
+      return res.status(404).json({ error: 'Tontine not found' });
+    }
+
+    res.status(200).json({ members: tontine.members });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch members' });
+  }
+};
+
 const tontineController = {
     createTontine,
     joinTontine,
@@ -486,7 +546,10 @@ const tontineController = {
     setSanctionDone,
     getTontineByMember,
     processContributions,
-    mobilePayment
+    mobilePayment,
+    getAllTontines,
+  toggleTontineStatus,
+  getTontineMembers,
 };
 
 module.exports = tontineController;
