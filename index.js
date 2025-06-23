@@ -53,6 +53,8 @@ const userRoutes = require('./routers/user.router')
 app.use("/api/user",userRoutes)
 const tontineRoutes = require('./routers/tontine.router')
 app.use("/api/tontine",tontineRoutes)
+const statsRoutes = require('./routers/stats.routes');
+app.use('/api/stats', statsRoutes);
 app.use("/images", express.static(path.join(process.cwd(), 'NIC')));
 app.post('/api/uploadFile/:id', async (req, res) => {
     try {

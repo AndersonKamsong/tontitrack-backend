@@ -3,7 +3,7 @@ const TontineModel = require('../models/Tontine.js')
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcrypt');
 const validator = require('validator');
-
+const { sendVerificationCode, sendResetPassword } = require('../Services/emailService');
 
 const login = async (req, res) => {
     try {
@@ -27,22 +27,30 @@ const login = async (req, res) => {
             email: user.email,
             accountType: user.accountType
         }, 'mytoken')
-        // console.log(token)
+        console.log(token)
 
         user.token = token
+        const code = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit code
+        user.verificationCode = code;
+        user.verificationCodeExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+        user.isLogin = false
         user.save()
+            .then(async (res) => {
+                await sendVerificationCode(user.email, code);
+            })
             .then((result) => {
-            return res.status(200).json({
+                return res.status(200).json({
                     message: 'login successful',
                     phone: user.phone,
                     name: user.name,
                     token: token,
                     accountType: user.accountType
+                })
             })
-        })
-        .catch((err) => {
-            return res.status(401).json({ error: 'check your connection' })
-        })
+            .catch((err) => {
+                console.log(err)
+                return res.status(401).json({ error: 'check your connection' })
+            })
     }
     catch (e) {
         console.log(e)
@@ -51,9 +59,86 @@ const login = async (req, res) => {
 
 }
 
+const verifyCode = async (req, res) => {
+    try {
+        const { code } = req.body;
+
+        if (!code) {
+            return res.status(400).json({ error: 'Verification code is required.' });
+        }
+
+        const userId = req.user.id;
+
+        const user = await UserModel.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        if (
+            user.verificationCode !== code ||
+            !user.verificationCodeExpires ||
+            user.verificationCodeExpires < new Date()
+        ) {
+            return res.status(401).json({ error: 'Invalid or expired verification code.' });
+        }
+
+        user.isLogin = true;
+        user.verificationCode = null;
+        user.verificationCodeExpires = null;
+        await user.save();
+
+        return res.status(200).json({
+            message: 'Verification successful. You are now logged in.',
+            phone: user.phone,
+            name: user.name,
+            accountType: user.accountType
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: 'Server error.' });
+    }
+};
+
+const resendCode = async (req, res) => {
+  try {
+    // Assuming user id is in req.user.id after decodeToken middleware
+    const userId = req.user.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Find user by id
+    const user = await UserModel.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ error: 'User already verified' });
+    }
+
+    // Generate new verification code (6-digit numeric code)
+    const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Save the new code and expiration time (e.g., 15 min from now)
+    user.verificationCode = newCode;
+    user.verificationCodeExpires = Date.now() + 15 * 60 * 1000;
+    await user.save();
+
+    // Send email with the new code
+    await sendVerificationCode(user.email, newCode);
+
+    return res.json({ message: 'Verification code resent to your email.' });
+  } catch (error) {
+    console.error('Error in resendCode:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+};
 const register = async (req, res) => {
     try {
-        let { name,phone, dob, email, password, confirmPass } = req.body
+        let { name, phone, dob, email, password, confirmPass } = req.body
         console.log(req.body)
         if (!validator.isEmail(email)) {
             return res.status(400).send({ error: 'Invalid email.' });
@@ -108,6 +193,65 @@ const getAllUsers = async (req, res) => {
     }
 }
 
+const generateRandomPassword = (length = 10) => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$!';
+    return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+};
+
+const resetPassword = async (req, res) => {
+    const { email } = req.body;
+
+    try {
+        const user = await UserModel.findOne({ email: email.toLowerCase() });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        const newPassword = generateRandomPassword();
+        const hashedPassword = await bcrypt.hash(password, 9);
+
+        user.password = hashedPassword;
+        await user.save();
+
+        await sendResetPassword(user.email, newPassword);
+
+        res.status(200).json({ message: 'A new password has been sent to the user\'s email.' });
+    } catch (err) {
+        console.error('Reset password failed:', err);
+        res.status(500).json({ error: 'Failed to reset password.' });
+    }
+};
+
+// Activate or deactivate user
+const toggleUserStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = await UserModel.findById(id);
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        user.isActive = !user.isActive;
+        await user.save();
+        return res.status(200).json({ message: `User ${user.isActive ? "activated" : "deactivated"} successfully.` });
+    } catch (err) {
+        return res.status(500).json({ error: "Server error" });
+    }
+};
+
+// Promote or demote user to/from admin
+const toggleAdminRole = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = await UserModel.findById(id);
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        user.accountType = user.accountType === "Admin" ? "User" : "Admin";
+        await user.save();
+        return res.status(200).json({ message: `User role updated to ${user.accountType}` });
+    } catch (err) {
+        return res.status(500).json({ error: "Server error" });
+    }
+};
+
 // Controller function to create a new user
 const createUser = async (req, res) => {
     try {
@@ -154,9 +298,10 @@ const getUserById = async (req, res) => {
 const getUserDetail = async (req, res) => {
     try {
         // Get the user ID from token decoded
-        const userId = req.userId;
+        const userId = req.user.id;
         // Find the user by ID
         const user = await UserModel.findById(userId);
+        console.log(user)
         // Check if user exists
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
@@ -420,7 +565,12 @@ const userController = {
     login,
     register,
     getAllUsers,
-    getUserDetail
+    getUserDetail,
+    verifyCode,
+    toggleUserStatus,
+    toggleAdminRole,
+    resetPassword,
+    resendCode,
 };
 
 module.exports = userController;

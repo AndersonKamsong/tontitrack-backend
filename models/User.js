@@ -57,6 +57,12 @@ const userSchema = new Schema({
     payoutsPerMonth: { type: [sanctionsPerMonthSechema], require: true, default: 0 },
     transactions: { type: [transactionSechema], require: true },
     notifications: { type: [notificationSechema], require: true },
+
+    // 👇 Verification code support
+    verificationCode: { type: String, default: null },
+    verificationCodeExpires: { type: Date, default: null },
+    isLogin:{ type: Boolean, require: true,default:false },
+    isActive: { type: Boolean, default: true }, // New field
 });
 
 const UserModel = mongoose.model('UserModel', userSchema);
