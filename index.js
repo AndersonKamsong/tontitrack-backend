@@ -17,7 +17,8 @@ const formidable = require('formidable');
 var app = express();
 
 const allowedOrigins = [
-    'http://localhost:5173'
+    'http://localhost:5173',
+    'http://localhost:5174'
 ];
 
 // CORS options

@@ -208,7 +208,7 @@ const resetPassword = async (req, res) => {
         }
 
         const newPassword = generateRandomPassword();
-        const hashedPassword = await bcrypt.hash(password, 9);
+        const hashedPassword = await bcrypt.hash(newPassword, 9);
 
         user.password = hashedPassword;
         await user.save();
