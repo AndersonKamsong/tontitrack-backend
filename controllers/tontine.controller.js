@@ -186,11 +186,11 @@ const getTontineByMember = async (req, res) => {
         const tontineList = []
         tontine.map((item) => {
             item.members.map((opt) => {
-                if (opt._id.toString() === req.userId)
+                if (opt._id.toString() === req.userId.toString())
                     tontineList.push(item)
             })
         })
-
+        console.table(tontineList)
         res.status(200).json({
             tontine: tontineList,
         });

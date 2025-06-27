@@ -34,6 +34,17 @@ const login = async (req, res) => {
         user.verificationCode = code;
         user.verificationCodeExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
         user.isLogin = false
+        console.table([
+            {
+                Field: "Verification Code",
+                Value: user.verificationCode
+            },
+            {
+                Field: "Expiration Time",
+                Value: user.verificationCodeExpires
+            }
+        ]);
+
         user.save()
             .then(async (res) => {
                 await sendVerificationCode(user.email, code);
@@ -100,41 +111,51 @@ const verifyCode = async (req, res) => {
 };
 
 const resendCode = async (req, res) => {
-  try {
-    // Assuming user id is in req.user.id after decodeToken middleware
-    const userId = req.user.id;
+    try {
+        // Assuming user id is in req.user.id after decodeToken middleware
+        const userId = req.user.id;
 
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        // Find user by id
+        const user = await UserModel.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        if (user.isVerified) {
+            return res.status(400).json({ error: 'User already verified' });
+        }
+
+        // Generate new verification code (6-digit numeric code)
+        const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // Save the new code and expiration time (e.g., 15 min from now)
+        user.verificationCode = newCode;
+        user.verificationCodeExpires = Date.now() + 15 * 60 * 1000;
+        console.table([
+            {
+                Field: "Verification Code",
+                Value: user.verificationCode
+            },
+            {
+                Field: "Expiration Time",
+                Value: user.verificationCodeExpires
+            }
+        ]);
+        await user.save();
+
+        // Send email with the new code
+        await sendVerificationCode(user.email, newCode);
+
+        return res.json({ message: 'Verification code resent to your email.' });
+    } catch (error) {
+        console.error('Error in resendCode:', error);
+        return res.status(500).json({ error: 'Server error' });
     }
-
-    // Find user by id
-    const user = await UserModel.findById(userId);
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    if (user.isVerified) {
-      return res.status(400).json({ error: 'User already verified' });
-    }
-
-    // Generate new verification code (6-digit numeric code)
-    const newCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // Save the new code and expiration time (e.g., 15 min from now)
-    user.verificationCode = newCode;
-    user.verificationCodeExpires = Date.now() + 15 * 60 * 1000;
-    await user.save();
-
-    // Send email with the new code
-    await sendVerificationCode(user.email, newCode);
-
-    return res.json({ message: 'Verification code resent to your email.' });
-  } catch (error) {
-    console.error('Error in resendCode:', error);
-    return res.status(500).json({ error: 'Server error' });
-  }
 };
 const register = async (req, res) => {
     try {
