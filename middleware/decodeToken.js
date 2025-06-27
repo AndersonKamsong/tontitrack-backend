@@ -23,8 +23,8 @@ const decodeToken = async (req, res, next) => {
             return res.status(403).json({ error: 'Token mismatch.' });
         }
 
-       const isVerifyRoute = req.originalUrl === '/api/user/verify';
-
+       const isVerifyRoute = req.originalUrl === '/api/user/verify' || req.originalUrl === '/api/user/resend-code';
+        console.log(req.originalUrl)
         if (!user.isLogin && !isVerifyRoute) {
             return res.status(403).json({ error: 'User is not logged in.' });
         }
